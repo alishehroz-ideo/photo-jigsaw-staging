@@ -55,6 +55,11 @@
     dialog label{margin:12px 0 6px!important}
     dialog .dialog-primary,dialog .pjgb-secondary{margin-top:12px!important;min-height:44px!important}}
   @media (max-height:460px){dialog p{font-size:12px!important;line-height:1.5!important;margin:5px 0!important}dialog h2{font-size:18px!important;margin:0 0 6px!important}}
+  /* TOP: when their 9:16 picture is narrower than the window (it fits the height left under the band kept clear of the
+     GameBull app's Done / collapse buttons), the sides show a soft, blurred copy of the same picture instead of white
+     bars (QA IMG_6679: "main screen is shrinked"); their picture itself is whole and unchanged on top of it */
+  body.at-home::before{content:'';position:fixed;inset:-48px;z-index:-1;pointer-events:none;
+    background:#fafcfd url("assets/top-design.png") center top/cover no-repeat;filter:blur(14px);opacity:.75}
   /* fixed window: PJFit fits their page to the window (scale 1); no scrollbar */
   html{overflow:hidden;scrollbar-width:none}
   html::-webkit-scrollbar{display:none}`;
