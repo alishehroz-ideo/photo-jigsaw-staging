@@ -354,4 +354,27 @@
 
   /* ── iPhone: Web Audio plays with the silent switch on (trap W2); their bgm.js starts on the same tap ── */
   document.addEventListener('pointerdown', () => { try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* n/a */ } }, { capture: true, once: true });
+
+  /* ── their music on from the first tap anywhere (QA: "music should not be off by default") ──
+   * Their bgm.js is ON by default but starts only on START / 次のステージへ / ステージで遊ぶ or their BGM button, so the
+   * TOP stayed silent under 「♫ BGM 待機」. Browsers allow sound only inside a tap, so on the player's first tap
+   * anywhere their own BGM button is pressed for them (their start(), their label, their saved choice). Not when the
+   * player turned it off (their 「BGM OFF」, saved by their code), not when it already plays, and not when the tap is on
+   * their BGM button itself (their own click does it). pointerup / touchend / keydown: the events browsers count as
+   * a tap for audio (a touch pointerdown is not one on iPhone). */
+  const bgm = el('bgmToggle');
+  let pressedAt = 0;
+  const startMusic = e => {
+    if (!bgm || (e && e.target && e.target.closest && e.target.closest('#bgmToggle'))) return;
+    const t = bgm.textContent;
+    if (/ON|OFF|非対応/.test(t)) { stopListening(); return; } // playing, the player's OFF, or no Web Audio
+    // One touch sends touchend and pointerup; their start() is async, so a second press would turn it off again.
+    if (Date.now() - pressedAt < 2000) return;
+    pressedAt = Date.now();
+    log('First tap: their BGM starts (default ON).');
+    bgm.click();
+  };
+  const EVENTS = ['pointerup', 'touchend', 'keydown'];
+  const stopListening = () => EVENTS.forEach(t => document.removeEventListener(t, startMusic, true));
+  EVENTS.forEach(t => document.addEventListener(t, startMusic, true));
 })();
