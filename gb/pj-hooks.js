@@ -46,8 +46,10 @@
   .pjgb-dialog h2{margin-top:0}
   /* their dialogs (遊び方: four paragraphs) on short windows: tighter spacing so the whole dialog and its button fit,
      no scrolling inside it (their sizes above 700 px of height) */
+  /* their dialogs (centred) stay clear of the GameBull app's Done / collapse buttons in its expanded view */
+  dialog{max-height:calc(100dvh - 116px)!important}
   @media (max-height:700px){
-    dialog{padding:16px 18px!important;max-height:calc(100dvh - 16px)!important}
+    dialog{padding:16px 18px!important;max-height:calc(100dvh - 116px)!important}
     dialog h2{font-size:20px!important;margin:4px 0 10px!important}
     dialog p{font-size:13px!important;line-height:1.65!important;margin:8px 0!important}
     dialog label{margin:12px 0 6px!important}
@@ -239,10 +241,18 @@
   const fitStyle = document.createElement('style'); fitStyle.id = 'pjgb-fit'; document.head.appendChild(fitStyle);
   // BGM_ROW: their fixed BGM button (bottom right, 44 px) and their footer under the canvas, in their layout.
   const ART = 1672 / 941, BOARD = 1450 / 1200, BGM_ROW = 60, BGM_COL = innerWidth < 350 ? 64 : 78;
-  // Compact game screen (short windows): their brand header on one line, one toolbar row with their BGM button in a
+  // The GameBull app's expanded view (its "max" button) draws Done (top left) and its collapse button (top right) over
+  // the game frame (gamebull-whitelabel game-overlay-controls.tsx ImmersiveControls: 44 px tall, 4 px from the top and
+  // sides; Done about 62 px wide in English). The game is not told which view is on, so these two corners are kept
+  // clear of their content in every view (QA IMG_6677 / IMG_6678: the signature, header and ライフ pill were under them).
+  // Screen pixels: when loader.ts scales the frame (short landscape), the band is larger in their page's pixels.
+  const APP_TOP = 54, APP_LEFT = 72, APP_RIGHT = 56;
+  const frameScale = () => { try { const f = window.frameElement; return f && f.offsetWidth ? f.getBoundingClientRect().width / f.offsetWidth || 1 : 1; } catch { return 1; } };
+  const appTop = () => Math.ceil(APP_TOP / frameScale()), appLeft = () => Math.ceil(APP_LEFT / frameScale());
+  // Compact game screen (short windows): their brand header stacked small between the app's corners, one toolbar row with their BGM button in a
   // 4th slot (so the canvas can reach down to their footer), their help line on one line, tighter spacing.
-  const COMPACT = `body:not(.at-home) .game-brand{min-height:0!important;padding:5px 8px 3px!important;gap:8px!important;flex-direction:row!important;
-    justify-content:center!important;align-items:baseline!important;flex-wrap:wrap!important}
+  const COMPACT = () => `body:not(.at-home) .game-brand{min-height:${appTop()}px!important;box-sizing:border-box!important;padding:3px ${appLeft()}px 3px!important;gap:0!important;
+    flex-direction:column!important;justify-content:center!important;align-items:center!important}
   body:not(.at-home) .signature{font-size:19px!important;line-height:1.2!important}
   body:not(.at-home) .game-brand .photography{font-size:8px!important;letter-spacing:2px!important}
   body:not(.at-home) .brand-rule{margin-top:0!important;font-size:8px!important;letter-spacing:2px!important}
@@ -265,13 +275,16 @@
   const board = canvas;
   const visible = n => !!n && n.getClientRects().length > 0 && n.offsetHeight > 0;
   const pageHeight = () => document.documentElement.scrollHeight;
+  // TOP: a band of their white paper above their picture, under the app's corners; their ライフ pill sits in its middle.
+  const TOP_BAND = () => `body.at-home main{padding-top:${appTop()}px!important}
+    body.at-home .home-lives{top:${-appTop() / 2}px!important;left:50%!important;right:auto!important;transform:translate(-50%,-50%)!important}`;
   function fitHome() {
     const art = document.querySelector('.home-art');
     if (!art) return '';
     // Their buttons over the picture hold transparent text that spills out of a short button (遊び方 at 2.6 % of the
     // picture's height) and made the page taller than the window in landscape: font-size 0, nothing visible changes
     // (the text stays their accessible name).
-    let rule = 'body.at-home .art-control{font-size:0!important}';
+    let rule = 'body.at-home .art-control{font-size:0!important}' + TOP_BAND();
     fitStyle.textContent = rule;
     // Their picture at full width first; if the page is taller than the window, narrower by the overflow.
     for (let i = 0; i < 3 && pageHeight() > innerHeight + 0.5; i++) {
@@ -279,7 +292,7 @@
       // Their progress text is sized from the window width (clamp(11px,2.7vw,16px)), which is the picture's width on
       // their full-width phone layout: on a narrowed picture it follows the picture instead, as they meant it.
       const nw = Math.max(200, Math.floor(w - extra / ART)), font = Math.min(16, Math.max(9, nw * 0.027));
-      rule = `body.at-home .art-control{font-size:0!important}body.at-home main{max-width:${nw}px!important;margin:0 auto!important}
+      rule = `body.at-home .art-control{font-size:0!important}${TOP_BAND()}body.at-home main{max-width:${nw}px!important;margin:0 auto!important}
         body.at-home .home-progress{font-size:${font.toFixed(1)}px!important;letter-spacing:${nw < 300 ? 1 : 2}px!important;gap:${nw < 300 ? 3 : 6}px!important}
         body.at-home .home-lives{font-size:9px!important;padding:5px 8px!important}`; // their phone size of the ライフ pill
       fitStyle.textContent = rule;
@@ -302,7 +315,7 @@
     fitStyle.textContent = rule;
     // Their layout fits when the whole page is in the window and their BGM button (fixed, bottom right) is below the canvas.
     if (pageHeight() > innerHeight + 0.5 || board.getBoundingClientRect().bottom + BGM_ROW > innerHeight + 0.5) {
-      rule += COMPACT; fitStyle.textContent = rule;
+      rule += COMPACT(); fitStyle.textContent = rule;
       const t = document.querySelector('.toolbar').getBoundingClientRect();
       rule += `.bgm-toggle{position:fixed!important;left:${Math.round(t.right - 6 - BGM_COL)}px!important;top:${Math.round(t.top + 6)}px!important;right:auto!important;bottom:auto!important;
         width:${BGM_COL}px!important;height:${Math.round(t.height - 12)}px!important;min-height:0!important;padding:0 2px!important;font-size:${BGM_COL < 78 ? 10 : 11}px!important;
@@ -355,7 +368,7 @@
   /* ── iPhone: Web Audio plays with the silent switch on (trap W2); their bgm.js starts on the same tap ── */
   document.addEventListener('pointerdown', () => { try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* n/a */ } }, { capture: true, once: true });
 
-  /* ── their music on from the first tap anywhere (QA: "music should not be off by default") ──
+  /* ── their music on from the first tap anywhere (QA: "music should not be off by default"), one-language label ──
    * Their bgm.js is ON by default but starts only on START / 次のステージへ / ステージで遊ぶ or their BGM button, so the
    * TOP stayed silent under 「♫ BGM 待機」. Browsers allow sound only inside a tap, so on the player's first tap
    * anywhere their own BGM button is pressed for them (their start(), their label, their saved choice). Not when the
@@ -363,18 +376,31 @@
    * their BGM button itself (their own click does it). pointerup / touchend / keydown: the events browsers count as
    * a tap for audio (a touch pointerdown is not one on iPhone). */
   const bgm = el('bgmToggle');
+  /* Their button label mixes languages: 「♫ BGM 待機」 (Japanese: on, waiting for a tap) until their music plays, then
+   * 「♫ BGM ON」 / 「♫ BGM OFF」 (QA: "Japanese at first, English as soon as the game starts"). Their music now starts
+   * on any first tap, so 待機 only means "on, about to play": their own 「♫ BGM ON」 is shown for it (and for their
+   * 「♫ タップしてBGM」, the same state after a refused start). A tap on the button in that state starts the music in
+   * their code (enabled, not active), the same as ON should. Their label() writes button.textContent: this instance
+   * property shows the mapped text and keeps their real label for the checks below. */
+  const NATIVE = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+  let theirLabel = bgm ? bgm.textContent : '';
+  const shown = v => /待機|タップしてBGM/.test(v) ? '♫ BGM ON' : v;
+  if (bgm && NATIVE) {
+    Object.defineProperty(bgm, 'textContent', { configurable: true, get() { return NATIVE.get.call(this); },
+      set(v) { theirLabel = String(v); NATIVE.set.call(this, shown(theirLabel)); } });
+    bgm.textContent = theirLabel;
+  }
+  const waiting = () => /待機|タップしてBGM/.test(theirLabel); // their setting ON, their music not playing yet
   let pressedAt = 0;
+  // On every tap (also after the app comes back from the background, when a browser may hold their music until a
+  // tap): if their setting is ON and their music is not playing, their own button is pressed inside that tap.
   const startMusic = e => {
-    if (!bgm || (e && e.target && e.target.closest && e.target.closest('#bgmToggle'))) return;
-    const t = bgm.textContent;
-    if (/ON|OFF|非対応/.test(t)) { stopListening(); return; } // playing, the player's OFF, or no Web Audio
+    if (!bgm || !waiting() || (e && e.target && e.target.closest && e.target.closest('#bgmToggle'))) return;
     // One touch sends touchend and pointerup; their start() is async, so a second press would turn it off again.
     if (Date.now() - pressedAt < 2000) return;
     pressedAt = Date.now();
-    log('First tap: their BGM starts (default ON).');
+    log('Tap: their BGM starts (setting ON, not playing yet).');
     bgm.click();
   };
-  const EVENTS = ['pointerup', 'touchend', 'keydown'];
-  const stopListening = () => EVENTS.forEach(t => document.removeEventListener(t, startMusic, true));
-  EVENTS.forEach(t => document.addEventListener(t, startMusic, true));
+  for (const t of ['pointerup', 'touchend', 'keydown']) document.addEventListener(t, startMusic, true);
 })();
