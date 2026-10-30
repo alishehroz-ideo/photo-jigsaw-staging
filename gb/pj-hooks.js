@@ -246,18 +246,24 @@
   const fitStyle = document.createElement('style'); fitStyle.id = 'pjgb-fit'; document.head.appendChild(fitStyle);
   // BGM_ROW: their fixed BGM button (bottom right, 44 px) and their footer under the canvas, in their layout.
   const ART = 1672 / 941, BOARD = 1450 / 1200, BGM_ROW = 60, BGM_COL = innerWidth < 350 ? 64 : 78;
-  // The GameBull app's expanded view (its "max" button) draws Done (top left) and its collapse button (top right) over
-  // the game frame (gamebull-whitelabel game-overlay-controls.tsx ImmersiveControls: 44 px tall, 4 px from the top and
-  // sides; Done about 62 px wide in English). The game is not told which view is on, so these two corners are kept
-  // clear of their content in every view (QA IMG_6677 / IMG_6678: the signature, header and ライフ pill were under them).
+  // The GameBull app's expanded view (its "max" button, and landscape) draws Done (top left) and its collapse button
+  // (top right) over the game frame (gamebull-whitelabel game-overlay-controls.tsx ImmersiveControls: 44 px tall, 4 px
+  // from the top and sides; Done about 62 px wide in English). The game is not told; loader.ts infers the view from the
+  // frame's size changes (use-immersive-chrome.ts: portrait starts with the app's bar above the game, maximize removes
+  // the bar) and sets window.PJ_APP_CORNERS. In that view these corners are kept clear (QA IMG_6677 / IMG_6678).
   // Screen pixels: when loader.ts scales the frame (short landscape), the band is larger in their page's pixels.
   const APP_TOP = 54, APP_LEFT = 72, APP_RIGHT = 56;
+  const corners = () => window.PJ_APP_CORNERS === true;
   const frameScale = () => { try { const f = window.frameElement; return f && f.offsetWidth ? f.getBoundingClientRect().width / f.offsetWidth || 1 : 1; } catch { return 1; } };
-  const appTop = () => Math.ceil(APP_TOP / frameScale()), appLeft = () => Math.ceil(APP_LEFT / frameScale());
-  // Compact game screen (short windows): their brand header stacked small between the app's corners, one toolbar row with their BGM button in a
+  const appTop = () => corners() ? Math.ceil(APP_TOP / frameScale()) : 0, appLeft = () => Math.ceil(APP_LEFT / frameScale());
+  // Compact game screen (short windows): their brand header on one line (stacked small between the app's corners in
+  // its expanded view), one toolbar row with their BGM button in a
   // 4th slot (so the canvas can reach down to their footer), their help line on one line, tighter spacing.
-  const COMPACT = () => `body:not(.at-home) .game-brand{min-height:${appTop()}px!important;box-sizing:border-box!important;padding:3px ${appLeft()}px 3px!important;gap:0!important;
-    flex-direction:column!important;justify-content:center!important;align-items:center!important}
+  const COMPACT = () => (corners()
+    ? `body:not(.at-home) .game-brand{min-height:${appTop()}px!important;box-sizing:border-box!important;padding:3px ${appLeft()}px 3px!important;gap:0!important;
+    flex-direction:column!important;justify-content:center!important;align-items:center!important}`
+    : `body:not(.at-home) .game-brand{min-height:0!important;padding:5px 8px 3px!important;gap:8px!important;flex-direction:row!important;
+    justify-content:center!important;align-items:baseline!important;flex-wrap:wrap!important}`) + `
   body:not(.at-home) .signature{font-size:19px!important;line-height:1.2!important}
   body:not(.at-home) .game-brand .photography{font-size:8px!important;letter-spacing:2px!important}
   body:not(.at-home) .brand-rule{margin-top:0!important;font-size:8px!important;letter-spacing:2px!important}
@@ -280,27 +286,37 @@
   const board = canvas;
   const visible = n => !!n && n.getClientRects().length > 0 && n.offsetHeight > 0;
   const pageHeight = () => document.documentElement.scrollHeight;
-  // TOP: a band of their white paper above their picture, under the app's corners; their ライフ pill sits in its middle.
-  const TOP_BAND = () => `body.at-home main{padding-top:${appTop()}px!important}
-    body.at-home .home-lives{top:${-appTop() / 2}px!important;left:50%!important;right:auto!important;transform:translate(-50%,-50%)!important}`;
+  // TOP: their 9:16 picture as wide as the window (QA IMG_6679: narrowed, it read as "squeezed from the sides").
+  // At full width it is taller than a phone's game window (390 x 655 in the app: 693 px), so first only their empty
+  // paper above the signature (36 of 1672 px) and below 「Powered by GameBull」 (28 of 1672) is left out, and only if
+  // that is not enough the picture gets narrower (390 x 655: 384 px; the 3 px sides show a blurred copy of it). Their
+  // buttons over the picture are placed in % of it, so they follow. In the app's expanded view a band of the same paper
+  // sits above it, under the app's Done / collapse corners, with their ライフ pill in its middle.
+  const PAPER_TOP = 36 / 1672, PAPER_BOTTOM = 28 / 1672;
   function fitHome() {
     const art = document.querySelector('.home-art');
     if (!art) return '';
+    const H = innerHeight, band = appTop(), full = Math.min(document.documentElement.clientWidth, 620);
+    let w = full, h = w * ART, cropTop = 0;
+    const need = h + band - H;
+    if (need > 0) {
+      if (need <= h * (PAPER_TOP + PAPER_BOTTOM)) cropTop = need * PAPER_TOP / (PAPER_TOP + PAPER_BOTTOM);
+      else { w = Math.max(200, Math.floor((H - band) / (ART * (1 - PAPER_TOP - PAPER_BOTTOM)))); h = w * ART; cropTop = h * PAPER_TOP; }
+    }
     // Their buttons over the picture hold transparent text that spills out of a short button (遊び方 at 2.6 % of the
-    // picture's height) and made the page taller than the window in landscape: font-size 0, nothing visible changes
-    // (the text stays their accessible name).
-    let rule = 'body.at-home .art-control{font-size:0!important}' + TOP_BAND();
-    fitStyle.textContent = rule;
-    // Their picture at full width first; if the page is taller than the window, narrower by the overflow.
-    for (let i = 0; i < 3 && pageHeight() > innerHeight + 0.5; i++) {
-      const w = art.getBoundingClientRect().width, extra = pageHeight() - innerHeight;
+    // picture's height): font-size 0, nothing visible changes (the text stays their accessible name).
+    let rule = `body.at-home .art-control{font-size:0!important}
+      body.at-home main{max-width:${w}px!important;margin:0 auto!important;padding-top:${band}px!important;height:${H}px!important;overflow:hidden!important;box-sizing:border-box!important;display:flow-root!important}
+      body.at-home .photo-home{margin-top:${(-cropTop).toFixed(1)}px!important}`;
+    rule += band
+      ? `body.at-home .home-lives{top:${(cropTop - band / 2).toFixed(1)}px!important;left:50%!important;right:auto!important;transform:translate(-50%,-50%)!important}`
+      : `body.at-home .home-lives{top:${(cropTop + h * 0.01).toFixed(1)}px!important}`;   // their 1 % below the paper left out
+    if (w < full - 0.5) {
       // Their progress text is sized from the window width (clamp(11px,2.7vw,16px)), which is the picture's width on
       // their full-width phone layout: on a narrowed picture it follows the picture instead, as they meant it.
-      const nw = Math.max(200, Math.floor(w - extra / ART)), font = Math.min(16, Math.max(9, nw * 0.027));
-      rule = `body.at-home .art-control{font-size:0!important}${TOP_BAND()}body.at-home main{max-width:${nw}px!important;margin:0 auto!important}
-        body.at-home .home-progress{font-size:${font.toFixed(1)}px!important;letter-spacing:${nw < 300 ? 1 : 2}px!important;gap:${nw < 300 ? 3 : 6}px!important}
+      const font = Math.min(16, Math.max(9, w * 0.027));
+      rule += `body.at-home .home-progress{font-size:${font.toFixed(1)}px!important;letter-spacing:${w < 300 ? 1 : 2}px!important;gap:${w < 300 ? 3 : 6}px!important}
         body.at-home .home-lives{font-size:9px!important;padding:5px 8px!important}`; // their phone size of the ライフ pill
-      fitStyle.textContent = rule;
     }
     return rule;
   }
@@ -351,9 +367,9 @@
     fitStyle.textContent = rule;
     if (rule === lastFit) return;
     lastFit = rule;
-    const w = /max-width:(\d+)px/.exec(rule), b = /#board\{width:(\d+)px/.exec(rule);
+    const w = /main\{max-width:(\d+)px/.exec(rule), b = /#board\{width:(\d+)px/.exec(rule);
     log(`Fit ${innerWidth}x${innerHeight}: ${w ? `TOP picture ${w[1]} px wide` : b ? `canvas ${b[1]}x${Math.round(b[1] * BOARD)}` : 'their layout'}` +
-      `${rule.includes('game-brand') ? ', compact header and toolbar' : ''}${complete() ? ', finished-board lines over the tray' : ''}.`);
+      `${rule.includes('game-brand') ? ', compact header and toolbar' : ''}${complete() ? ', finished-board lines over the tray' : ''}${corners() ? ', app corners kept clear' : ''}.`);
   }
   window.PJFit = PJFit;                                          // also called by loader.ts before it measures
   addEventListener('resize', PJFit);
